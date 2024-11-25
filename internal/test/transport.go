@@ -32,20 +32,50 @@ func MakeHandler(logger *zap.Logger, sv TestService) Handler {
 	handler := Handler{}
 	router := http.NewServeMux()
 
-	testHandler := kithttp.NewServer(
-		makeTestEnpoint(sv),
-		decodeTestRequest,
+	reverseHandler := kithttp.NewServer(
+		makeReverseEndpoint(sv),
+		decodeReverseRequest,
 		kithttp.EncodeJSONResponse,
 		opts...,
 	)
-	router.Handle("POST /foo", testHandler)
+	router.Handle("POST /foo", reverseHandler)
+
+	helloHandler := kithttp.NewServer(
+		makeHelloEndpoint(sv),
+		kithttp.NopRequestDecoder,
+		kithttp.EncodeJSONResponse,
+		opts...,
+	)
+	router.Handle("GET /bar", helloHandler)
 
 	handler.ServeMux = router
 	return handler
 }
 
-func decodeTestRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	body := map[string]interface{}{}
+type ReverseRequest struct {
+	Value string `json:"value"`
+}
+
+func decodeReverseRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	body := ReverseRequest{}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
+type ReverseResponse struct {
+	Result string `json:"result"`
+}
+
+type HelloResponse struct {
+	Result string `json:"result"`
+}
+
+func decodeHelloResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	body := HelloResponse{}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return nil, err

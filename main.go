@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"gokit-seed/internal/common"
 	"gokit-seed/internal/test"
 	"net"
@@ -29,6 +30,10 @@ func main() {
 		}
 	}
 
+	var (
+		TEST_URL = common.GetEnv("TEST_URL")
+	)
+
 	fx.New(
 		fx.Provide(
 			NewLogger,
@@ -38,7 +43,12 @@ func main() {
 				fx.ParamTags(`group:"routes"`),
 			),
 			// Add more services here
-      test.NewTestService,
+			func() test.TestService {
+				testService := test.NewTestService()
+				testService = test.MakeProxyTestService(TEST_URL)(testService)
+				return testService
+			},
+
 			// Add more routes here
 			asRoute(test.MakeHandler),
 		),
@@ -62,7 +72,7 @@ func NewLogger() (*zap.Logger, error) {
 
 func NewHttpServer(lc fx.Lifecycle, mux *http.ServeMux, logger *zap.Logger) *http.Server {
 	server := &http.Server{
-		Addr:    ":3000",
+		Addr:    fmt.Sprintf(":%s", (common.MustGetEnv("PORT"))),
 		Handler: mux,
 	}
 

@@ -6,8 +6,17 @@ import (
 	"github.com/go-kit/kit/endpoint"
 )
 
-func makeTestEnpoint(sv TestService) endpoint.Endpoint {
+func makeReverseEndpoint(sv TestService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
-		return sv.Test(request), nil
+		req := request.(ReverseRequest)
+		result := sv.Reverse(req.Value)
+		return ReverseResponse{result}, nil
+	}
+}
+
+func makeHelloEndpoint(sv TestService) endpoint.Endpoint {
+	return func(_ context.Context, request interface{}) (interface{}, error) {
+		result, resultErr := sv.Hello()
+		return HelloResponse{result}, resultErr
 	}
 }
