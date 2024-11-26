@@ -3,9 +3,11 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	kitzap "github.com/go-kit/kit/log/zap"
+	"github.com/go-kit/kit/sd/lb"
 	"github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"go.uber.org/zap"
@@ -26,7 +28,7 @@ func MakeHandler(logger *zap.Logger, sv TestService) Handler {
 				kitzap.NewZapSugarLogger(logger, zap.DebugLevel),
 			),
 		),
-		kithttp.ServerErrorEncoder(kithttp.DefaultErrorEncoder),
+		kithttp.ServerErrorEncoder(decodeHelloError),
 	}
 
 	handler := Handler{}
@@ -82,4 +84,13 @@ func decodeHelloResponse(_ context.Context, r *http.Response) (interface{}, erro
 	}
 
 	return body, nil
+}
+
+func decodeHelloError(ctx context.Context, err error, w http.ResponseWriter) {
+	if errors.As(err, &lb.RetryError{}) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+
+	kithttp.DefaultErrorEncoder(ctx, err, w)
 }
