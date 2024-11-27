@@ -9,7 +9,10 @@ import (
 	"net/http"
 	"os"
 
+	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
@@ -44,8 +47,27 @@ func main() {
 			),
 			// Add more services here
 			func() test.TestService {
+				labels := []string{"method"}
 				testService := test.NewTestService()
 				testService = test.MakeProxyTestService(TEST_URL)(testService)
+				testService = test.MakeInstrumentMiddleware(
+					common.NewMetrics(
+						kitprometheus.NewCounterFrom(prometheus.CounterOpts{
+							Name: "reverse_count",
+						}, labels),
+						kitprometheus.NewHistogramFrom(prometheus.HistogramOpts{
+							Name: "reverse_latency",
+						}, labels),
+					),
+					common.NewMetrics(
+						kitprometheus.NewCounterFrom(prometheus.CounterOpts{
+							Name: "hello_count",
+						}, labels),
+						kitprometheus.NewHistogramFrom(prometheus.HistogramOpts{
+							Name: "hello_latency",
+						}, labels),
+					),
+				)(testService)
 				return testService
 			},
 
@@ -110,6 +132,7 @@ func NewMuxServer(routes []Route, logger *zap.Logger) *http.ServeMux {
 		mux.Handle(pattern, http.StripPrefix(prefix, handler))
 	}
 
+	mux.Handle("/metrics", promhttp.Handler())
 	return mux
 }
 
