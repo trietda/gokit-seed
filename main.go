@@ -4,25 +4,19 @@ import (
 	"context"
 	"fmt"
 	"gokit-seed/internal/common"
+	"gokit-seed/internal/otel"
 	"gokit-seed/internal/test"
 	"net"
 	"net/http"
 	"os"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/joho/godotenv"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
-
-type Route interface {
-	http.Handler
-	Pattern() string
-}
 
 func main() {
 	if os.Getenv("GO_ENV") != "production" {
@@ -47,27 +41,8 @@ func main() {
 			),
 			// Add more services here
 			func() test.TestService {
-				labels := []string{"method"}
 				testService := test.NewTestService()
 				testService = test.MakeProxyTestService(TEST_URL)(testService)
-				testService = test.MakeInstrumentMiddleware(
-					common.NewMetrics(
-						kitprometheus.NewCounterFrom(prometheus.CounterOpts{
-							Name: "reverse_count",
-						}, labels),
-						kitprometheus.NewHistogramFrom(prometheus.HistogramOpts{
-							Name: "reverse_latency",
-						}, labels),
-					),
-					common.NewMetrics(
-						kitprometheus.NewCounterFrom(prometheus.CounterOpts{
-							Name: "hello_count",
-						}, labels),
-						kitprometheus.NewHistogramFrom(prometheus.HistogramOpts{
-							Name: "hello_latency",
-						}, labels),
-					),
-				)(testService)
 				return testService
 			},
 
@@ -92,14 +67,16 @@ func NewLogger() (*zap.Logger, error) {
 	}
 }
 
-func NewHttpServer(lc fx.Lifecycle, mux *http.ServeMux, logger *zap.Logger) *http.Server {
+func NewHttpServer(lc fx.Lifecycle, handler http.Handler, logger *zap.Logger) *http.Server {
+	var shutdownOtel func(context.Context) error
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", (common.MustGetEnv("PORT"))),
-		Handler: mux,
+		Handler: handler,
 	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			shutdownOtel, _ = otel.SetupOTelSDK(ctx)
 			ln, err := net.Listen("tcp", server.Addr)
 
 			if err != nil {
@@ -114,6 +91,11 @@ func NewHttpServer(lc fx.Lifecycle, mux *http.ServeMux, logger *zap.Logger) *htt
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
+			logger.Info("otel is shutting down")
+			if err := shutdownOtel(ctx); err != nil {
+				return err
+			}
+
 			logger.Info("server is shutting down")
 			return server.Shutdown(ctx)
 		},
@@ -122,24 +104,22 @@ func NewHttpServer(lc fx.Lifecycle, mux *http.ServeMux, logger *zap.Logger) *htt
 	return server
 }
 
-func NewMuxServer(routes []Route, logger *zap.Logger) *http.ServeMux {
+func NewMuxServer(routes []*common.RouteGroup, logger *zap.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	for _, route := range routes {
-		pattern := route.Pattern()
-		prefix := pattern[:len(pattern)-1]
+		path := route.Path + "/"
 		handler := common.LoggingHandler(logger, route)
-		mux.Handle(pattern, http.StripPrefix(prefix, handler))
+		mux.Handle(path, handler)
 	}
 
-	mux.Handle("/metrics", promhttp.Handler())
-	return mux
+	handler := otelhttp.NewHandler(mux, "/")
+	return handler
 }
 
 func asRoute(handlerFactory any) any {
 	return fx.Annotate(
 		handlerFactory,
-		fx.As(new(Route)),
 		fx.ResultTags(`group:"routes"`),
 	)
 }

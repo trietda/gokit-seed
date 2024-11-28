@@ -4,24 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"gokit-seed/internal/common"
 	"net/http"
 
 	kitzap "github.com/go-kit/kit/log/zap"
 	"github.com/go-kit/kit/sd/lb"
 	"github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	// "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
-type Handler struct {
-	*http.ServeMux
-}
-
-func (h Handler) Pattern() string {
-	return "/test/"
-}
-
-func MakeHandler(logger *zap.Logger, sv TestService) Handler {
+func MakeHandler(logger *zap.Logger, sv TestService) (router *common.RouteGroup) {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorHandler(
 			transport.NewLogErrorHandler(
@@ -31,27 +27,31 @@ func MakeHandler(logger *zap.Logger, sv TestService) Handler {
 		kithttp.ServerErrorEncoder(decodeHelloError),
 	}
 
-	handler := Handler{}
-	router := http.NewServeMux()
+	router = common.NewRouteGroup("/strings")
 
-	reverseHandler := kithttp.NewServer(
+	var reverseHandler http.Handler
+	reverseHandler = kithttp.NewServer(
 		makeReverseEndpoint(sv),
 		decodeReverseRequest,
 		kithttp.EncodeJSONResponse,
 		opts...,
 	)
-	router.Handle("POST /foo", reverseHandler)
+	reversePath := "/reversions"
+	reverseHandler = otelhttp.WithRouteTag(reversePath, reverseHandler)
+	router.Handler("POST", reversePath, reverseHandler)
 
-	helloHandler := kithttp.NewServer(
+	var helloHandler http.Handler
+	helloHandler = kithttp.NewServer(
 		makeHelloEndpoint(sv),
 		kithttp.NopRequestDecoder,
 		kithttp.EncodeJSONResponse,
 		opts...,
 	)
-	router.Handle("GET /bar", helloHandler)
+	helloPath := "/greetings"
+	helloHandler = otelhttp.WithRouteTag(helloPath, helloHandler)
+	router.Handler("GET", helloPath, helloHandler)
 
-	handler.ServeMux = router
-	return handler
+	return
 }
 
 type ReverseRequest struct {
