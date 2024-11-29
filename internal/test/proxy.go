@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"gokit-seed/internal/common"
+	"gokit-seed/internal/otel"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,9 +19,8 @@ import (
 )
 
 type proxymw struct {
-	ctx   context.Context
-	next  TestService
-	test2 endpoint.Endpoint
+	next          TestService
+	helloEndpoint endpoint.Endpoint
 }
 
 func MakeProxyTestService(proxyUrl *string) ServiceMiddleware {
@@ -37,7 +38,7 @@ func MakeProxyTestService(proxyUrl *string) ServiceMiddleware {
 		var endpointers = kitsd.FixedEndpointer{}
 
 		for _, instanceUrl := range instanceUrls {
-			e := makeHelloProxy(context.Background(), instanceUrl)
+			e := makeHelloProxy(instanceUrl)
 			e = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(e)
 			e = kitratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(5*time.Second), 1))(e)
 
@@ -48,7 +49,6 @@ func MakeProxyTestService(proxyUrl *string) ServiceMiddleware {
 		retry := lb.Retry(1, time.Duration(5*time.Second), loadbalancer)
 
 		return proxymw{
-			context.Background(),
 			ts,
 			retry,
 		}
@@ -59,8 +59,8 @@ func (p proxymw) Reverse(s string) string {
 	return p.next.Reverse(s)
 }
 
-func (p proxymw) Hello() (string, error) {
-	response, responseErr := p.test2(p.ctx, nil)
+func (p proxymw) Hello(ctx context.Context) (string, error) {
+	response, responseErr := p.helloEndpoint(ctx, nil)
 
 	if responseErr != nil {
 		return "", responseErr
@@ -71,11 +71,14 @@ func (p proxymw) Hello() (string, error) {
 	return responseData.Result, nil
 }
 
-func makeHelloProxy(ctx context.Context, url string) endpoint.Endpoint {
+func makeHelloProxy(url string) endpoint.Endpoint {
 	return kithttp.NewClient(
 		"GET",
 		common.MustParseUrl(url),
 		kithttp.EncodeJSONRequest,
 		decodeHelloResponse,
+		kithttp.SetClient(&http.Client{
+			Transport: otel.NewRpcTransport(otel.NameRpc("TestService", "hello")),
+		}),
 	).Endpoint()
 }

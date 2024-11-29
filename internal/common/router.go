@@ -48,19 +48,19 @@ func NewRouteGroup(path string) *RouteGroup {
 }
 
 func (r *RouteGroup) NewGroup(path string) *RouteGroup {
-	return newRouteGroup(r.r, r.subPath(path))
+	return newRouteGroup(r.r, r.SubPath(path))
 }
 
 func (r *RouteGroup) Handle(method, path string, handle httprouter.Handle) {
-	r.r.Handle(method, r.subPath(path), handle)
+	r.r.Handle(method, r.SubPath(path), handle)
 }
 
 func (r *RouteGroup) Handler(method, path string, handler http.Handler) {
-	r.r.Handler(method, r.subPath(path), handler)
+	r.r.Handler(method, r.SubPath(path), handler)
 }
 
 func (r *RouteGroup) HandlerFunc(method, path string, handler http.HandlerFunc) {
-	r.r.HandlerFunc(method, r.subPath(path), handler)
+	r.r.HandlerFunc(method, r.SubPath(path), handler)
 }
 
 func (r *RouteGroup) GET(path string, handle httprouter.Handle) {
@@ -95,7 +95,7 @@ func (r RouteGroup) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.r.ServeHTTP(w, req)
 }
 
-func (r *RouteGroup) subPath(path string) string {
+func (r *RouteGroup) SubPath(path string) string {
 	if path[0] != '/' {
 		panic("path must start with a '/'")
 	}

@@ -15,8 +15,8 @@ func makeReverseEndpoint(sv TestService) endpoint.Endpoint {
 }
 
 func makeHelloEndpoint(sv TestService) endpoint.Endpoint {
-	return func(_ context.Context, request interface{}) (interface{}, error) {
-		result, resultErr := sv.Hello()
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		result, resultErr := sv.Hello(ctx)
 		return HelloResponse{result}, resultErr
 	}
 }

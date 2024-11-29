@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"gokit-seed/internal/common"
+	"gokit-seed/internal/otel"
 	"net/http"
 
 	kitzap "github.com/go-kit/kit/log/zap"
@@ -12,8 +13,6 @@ import (
 	"github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-
-	// "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +36,12 @@ func MakeHandler(logger *zap.Logger, sv TestService) (router *common.RouteGroup)
 		opts...,
 	)
 	reversePath := "/reversions"
-	reverseHandler = otelhttp.WithRouteTag(reversePath, reverseHandler)
+	reverseHandler = otelhttp.WithRouteTag(router.SubPath(reversePath), reverseHandler)
+	reverseHandler = otelhttp.NewHandler(
+		reverseHandler,
+		"",
+		otelhttp.WithSpanNameFormatter(otel.NameHttpRequest(router.SubPath(reversePath))),
+	)
 	router.Handler("POST", reversePath, reverseHandler)
 
 	var helloHandler http.Handler
@@ -48,7 +52,12 @@ func MakeHandler(logger *zap.Logger, sv TestService) (router *common.RouteGroup)
 		opts...,
 	)
 	helloPath := "/greetings"
-	helloHandler = otelhttp.WithRouteTag(helloPath, helloHandler)
+	helloHandler = otelhttp.WithRouteTag(router.SubPath(helloPath), helloHandler)
+	helloHandler = otelhttp.NewHandler(
+		helloHandler,
+		"",
+		otelhttp.WithSpanNameFormatter(otel.NameHttpRequest(router.SubPath(helloPath))),
+	)
 	router.Handler("GET", helloPath, helloHandler)
 
 	return

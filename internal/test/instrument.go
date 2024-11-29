@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"gokit-seed/internal/common"
 	"time"
 )
@@ -26,7 +27,7 @@ func (mw instrumentmw) Reverse(s string) string {
 	return mw.TestService.Reverse(s)
 }
 
-func (mw instrumentmw) Hello() (string, error) {
+func (mw instrumentmw) Hello(ctx context.Context) (string, error) {
 	defer mw.reverseMetrics.Collect(time.Now(), "method", "hello")
-	return mw.TestService.Hello()
+	return mw.TestService.Hello(ctx)
 }

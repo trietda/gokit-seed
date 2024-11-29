@@ -1,13 +1,14 @@
 package test
 
 import (
+	"context"
 	"fmt"
 	"os"
 )
 
 type TestService interface {
 	Reverse(s string) string
-	Hello() (string, error)
+	Hello(ctx context.Context) (string, error)
 }
 
 type ServiceMiddleware func(TestService) TestService
@@ -27,6 +28,6 @@ func (sv testService) Reverse(s string) string {
 	return string(runes)
 }
 
-func (sv testService) Hello() (string, error) {
+func (sv testService) Hello(ctx context.Context) (string, error) {
 	return fmt.Sprintf("Hello world! %s", os.Getenv("NAME")), nil
 }
