@@ -33,14 +33,16 @@ func main() {
 	)
 
 	fx.New(
-		fx.Provide(NewLoggerProvider),
-		fx.Provide(NewLogger),
-		fx.Invoke(SetupOtelSdk),
+		fx.Provide(
+			NewLoggerProvider,
+			NewLogger,
+		),
 		fx.WithLogger(func(logger *zap.Logger) fxevent.Logger {
 			fxLogger := &fxevent.ZapLogger{Logger: logger}
 			fxLogger.UseLogLevel(zapcore.DebugLevel)
 			return fxLogger
 		}),
+		fx.Invoke(SetupOtelSdk),
 		fx.Provide(
 			NewHttpServer,
 			fx.Annotate(
