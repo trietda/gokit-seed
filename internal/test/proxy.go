@@ -4,7 +4,6 @@ import (
 	"context"
 	"gokit-seed/internal/common"
 	"gokit-seed/internal/otel"
-	"net/http"
 	"strings"
 	"time"
 
@@ -77,8 +76,6 @@ func makeHelloProxy(url string) endpoint.Endpoint {
 		common.MustParseUrl(url),
 		kithttp.EncodeJSONRequest,
 		decodeHelloResponse,
-		kithttp.SetClient(&http.Client{
-			Transport: otel.NewRpcTransport(otel.NameRpc("TestService", "hello")),
-		}),
+		kithttp.SetClient(otel.DefaultClient),
 	).Endpoint()
 }
