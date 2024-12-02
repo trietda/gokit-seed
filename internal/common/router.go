@@ -9,15 +9,15 @@ import (
 )
 
 type Router struct {
-	httprouter.Router
+	*httprouter.Router
 }
 
 func NewRouter(r *httprouter.Router) *Router {
 	if r != nil {
-		return &Router{*r}
+		return &Router{r}
 	}
 
-	return &Router{*httprouter.New()}
+	return &Router{httprouter.New()}
 }
 
 // NewGroup adds a zero overhead group of routes that share a common root path.
@@ -91,7 +91,7 @@ func (r *RouteGroup) DELETE(path string, handle httprouter.Handle) {
 	r.Handle("DELETE", path, handle)
 }
 
-func (r RouteGroup) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *RouteGroup) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.r.ServeHTTP(w, req)
 }
 

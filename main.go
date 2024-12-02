@@ -80,7 +80,9 @@ func NewLogger(lgp *log.LoggerProvider) (*zap.Logger, error) {
 		cores = append(cores, stdoutCore)
 	}
 
-	return zap.New(zapcore.NewTee(cores...)), nil
+	logger := zap.New(zapcore.NewTee(cores...))
+	zap.ReplaceGlobals(logger)
+	return logger, nil
 }
 
 func SetupOtelSdk(lc fx.Lifecycle, logger *zap.Logger, lgp *log.LoggerProvider) error {

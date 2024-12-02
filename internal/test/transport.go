@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"gokit-seed/internal/common"
-	"gokit-seed/internal/otel"
+  otelhttputil "gokit-seed/internal/otel/go-kit"
 	"net/http"
 
 	kitzap "github.com/go-kit/kit/log/zap"
@@ -32,32 +32,24 @@ func MakeHandler(logger *zap.Logger, sv TestService) (router *common.RouteGroup)
 	reverseHandler = kithttp.NewServer(
 		makeReverseEndpoint(sv),
 		decodeReverseRequest,
-		kithttp.EncodeJSONResponse,
+		otelhttputil.DefaultJsonEncoder,
 		opts...,
 	)
 	reversePath := "/reversions"
 	reverseHandler = otelhttp.WithRouteTag(router.SubPath(reversePath), reverseHandler)
-	reverseHandler = otelhttp.NewHandler(
-		reverseHandler,
-		"",
-		otelhttp.WithSpanNameFormatter(otel.NameHttpRequest(router.SubPath(reversePath))),
-	)
+	reverseHandler = otelhttp.NewHandler(reverseHandler, router.SubPath(reversePath))
 	router.Handler("POST", reversePath, reverseHandler)
 
 	var helloHandler http.Handler
 	helloHandler = kithttp.NewServer(
 		makeHelloEndpoint(sv),
 		kithttp.NopRequestDecoder,
-		kithttp.EncodeJSONResponse,
+		otelhttputil.DefaultJsonEncoder,
 		opts...,
 	)
 	helloPath := "/greetings"
 	helloHandler = otelhttp.WithRouteTag(router.SubPath(helloPath), helloHandler)
-	helloHandler = otelhttp.NewHandler(
-		helloHandler,
-		"",
-		otelhttp.WithSpanNameFormatter(otel.NameHttpRequest(router.SubPath(helloPath))),
-	)
+	helloHandler = otelhttp.NewHandler(helloHandler, router.SubPath(helloPath))
 	router.Handler("GET", helloPath, helloHandler)
 
 	return
