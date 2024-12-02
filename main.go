@@ -133,8 +133,7 @@ func NewMuxServer(routes []*common.RouteGroup, logger *zap.Logger) http.Handler 
 
 	for _, route := range routes {
 		path := route.Path + "/"
-		handler := common.LoggingHandler(logger, route)
-		mux.Handle(path, handler)
+		mux.Handle(path, route)
 	}
 
 	return mux
