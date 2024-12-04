@@ -3,6 +3,7 @@ package otel
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -11,14 +12,14 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
-func SetupOTelSdk(lgp *log.LoggerProvider) (func(context.Context) error, error) {
+func SetupOTelSdk(lgp *sdklog.LoggerProvider) (func(context.Context) error, error) {
 	connectCtx := context.Background()
 	shutdownCtx := context.Background()
 
@@ -52,8 +53,10 @@ func SetupOTelSdk(lgp *log.LoggerProvider) (func(context.Context) error, error) 
 		handleErr(err, shutdownCtx)
 		return shutdown, err
 	}
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-	otel.SetTracerProvider(tracerProvider)
+	if tracerProvider != nil {
+		shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+		otel.SetTracerProvider(tracerProvider)
+	}
 
 	// Set up meter provider.
 	meterProvider, err := newMeterProvider(connectCtx)
@@ -61,8 +64,10 @@ func SetupOTelSdk(lgp *log.LoggerProvider) (func(context.Context) error, error) 
 		handleErr(err, shutdownCtx)
 		return shutdown, err
 	}
-	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
-	otel.SetMeterProvider(meterProvider)
+	if meterProvider != nil {
+		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
+		otel.SetMeterProvider(meterProvider)
+	}
 
 	// Set up logger provider.
 	if lgp == nil {
@@ -71,8 +76,10 @@ func SetupOTelSdk(lgp *log.LoggerProvider) (func(context.Context) error, error) 
 			handleErr(err, shutdownCtx)
 			return shutdown, err
 		}
-		shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
-		global.SetLoggerProvider(loggerProvider)
+		if loggerProvider != nil {
+			shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
+			global.SetLoggerProvider(lgp)
+		}
 	} else {
 		shutdownFuncs = append(shutdownFuncs, lgp.Shutdown)
 		global.SetLoggerProvider(lgp)
@@ -89,6 +96,11 @@ func newPropagator() propagation.TextMapPropagator {
 }
 
 func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
+
+	if traceEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); traceEndpoint == "" {
+		return nil, nil
+	}
+
 	traceExporter, err := otlptracehttp.New(ctx)
 
 	if err != nil {
@@ -104,7 +116,13 @@ func newTraceProvider(ctx context.Context) (*trace.TracerProvider, error) {
 }
 
 func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
+
+	if metricEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"); metricEndpoint == "" {
+		return nil, nil
+	}
+
 	metricExporter, err := otlpmetrichttp.New(ctx)
+
 	if err != nil {
 		return nil, err
 	}
@@ -117,15 +135,24 @@ func newMeterProvider(ctx context.Context) (*metric.MeterProvider, error) {
 	return meterProvider, nil
 }
 
-func NewLoggerProvider(ctx context.Context) (*log.LoggerProvider, error) {
-	logExporter, err := otlploghttp.New(ctx)
+func NewLoggerProvider(ctx context.Context) (*sdklog.LoggerProvider, error) {
+	var (
+		logExporter sdklog.Exporter
+		err         error
+	)
+
+	if logEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"); logEndpoint == "" {
+		return nil, nil
+	}
+
+	logExporter, err = otlploghttp.New(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	loggerProvider := log.NewLoggerProvider(
-		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+	loggerProvider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
 	)
 	return loggerProvider, nil
 }

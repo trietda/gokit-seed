@@ -37,8 +37,8 @@ func MakeHandler(logger *zap.Logger, sv TestService) (router *common.RouteGroup)
 		opts...,
 	)
 	reversePath := "/reversions"
+  reverseHandler = common.BaseHandler(logger, reverseHandler, otelutil.WithTraceIdLog)
 	reverseHandler = otelhttp.WithRouteTag(router.SubPath(reversePath), reverseHandler)
-	reverseHandler = otelutil.WithTraceIdLog(reverseHandler)
 	reverseHandler = otelhttp.NewHandler(reverseHandler, router.SubPath(reversePath))
 	router.Handler("POST", reversePath, reverseHandler)
 
