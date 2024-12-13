@@ -28,6 +28,6 @@ func (mw instrumentmw) Reverse(s string) string {
 }
 
 func (mw instrumentmw) Hello(ctx context.Context) (string, error) {
-	defer mw.reverseMetrics.Collect(time.Now(), "method", "hello")
+	defer mw.hellowMetrics.Collect(time.Now(), "method", "hello")
 	return mw.TestService.Hello(ctx)
 }
