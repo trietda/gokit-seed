@@ -8,6 +8,7 @@ import (
 	"gokit-seed/internal/test"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -135,6 +136,15 @@ func NewMuxServer(routes []*common.RouteGroup, logger *zap.Logger) http.Handler 
 		path := route.Path + "/"
 		mux.Handle(path, route)
 	}
+
+	// add pprof to mux handler only if in development
+  if os.Getenv("GO_ENV") != "production" {
+    mux.HandleFunc("/debug/pprof/", pprof.Index)
+    mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+    mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+    mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+    mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+  }
 
 	return mux
 }
